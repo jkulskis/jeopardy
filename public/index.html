@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jeopardy</title>
+    <link rel="stylesheet" href="styles/main.css" />
+  </head>
+
+  <body>
+    <div id="gameArea">
+      <!-- Where all the templates below will be used -->
+    </div>
+
+    <!-- Main title screen at init -->
+    <script id="intro-screen-template" type="text/template">
+      <div class="title">Jeopardy</div>
+      <div class="buttons">
+        <button id="btnCreateGame" class="btn left">CREATE</button>
+        <button id="btnJoinGame" class="btn right">JOIN</button>
+        <div style="clear:both"></div>
+      </div>
+    </script>
+
+    <!-- JS Libraries  -->
+    <script src="libs/jquery-3.5.1.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="libs/fastclick.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
