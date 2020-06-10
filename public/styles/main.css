@@ -1,0 +1,153 @@
+html * {
+    font-family: 'Acme', sans-serif;
+}
+
+body {
+    background: #eacda3; /* fallback for old browsers */
+    background: -webkit-linear-gradient(to right, #eacda3, #d6ae7b); /* Chrome 10-25, Safari 5.1-6 */
+    background: linear-gradient(to right, #eacda3, #d6ae7b); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+}
+
+.title {
+    text-align: center;
+    color: white;
+    border: black;
+    font-weight: bold;
+    font-size: 4em;
+}
+
+
+/* Start Screen */
+
+.intro-container {
+    display: flex;
+    flex-direction: column;
+    margin: 40px auto 0 auto;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.intro-container * {
+    margin-bottom: 20px;
+    padding: 20px;
+    font-size: 1.5em;
+}
+
+.intro-container input {
+    border: 1px solid black;
+    border-radius: 5px;
+    width: 220px;
+    text-align: center;
+}
+
+.intro-container button {
+    background-color: #281ab1;
+    border: 1px solid black;
+    color: white;
+    width: 230px;
+    border-radius: 5px;
+}
+
+.intro-container #btnJoinGame {
+    background-color: #81589c;
+    border: 1px solid black;
+    color: white;
+    width: 230px;
+    border-radius: 5px;
+}
+
+.intro-container #btnJoinGame:hover {
+    background-color: #4b2961;
+}
+
+.intro-container button:hover {
+    background-color: #120a61;
+}
+
+.intro-container #errorMessage {
+    color: #4c0e54;
+    width: 75%;
+    text-align: center;
+} 
+
+/* Lobby Screen */
+
+.lobby-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.lobby-container .info {
+    font-size: 1.3em;
+    margin-bottom: 10px;
+}
+
+.lobby-container .info-big {
+    font-size: 2em;
+    margin: 0 0 10px;
+}
+
+.lobby-container .players-container {
+    margin-top: 10px;
+}
+
+.players-container #playersHeader {
+    font-size: 2em;
+    color: #5d2e2e;
+    border: 5px solid white;
+    padding: 7px 30px 2px 30px;
+    margin: 0;
+}
+
+.players-container #players {
+    list-style: none;
+    padding: 7px 30px 2px 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border: 5px solid #8fb2ce;
+    margin: 0 0 15px 0;
+}
+
+.players-container #players li {
+    font-size: 1.5em;
+    color: #281ab1;
+    text-align: center;
+}
+
+.players-container #players li:nth-child(even) {
+    color: #444c47;
+}
+
+.players-container #players li:nth-child(3) {
+    color: #a94365;
+}
+
+.players-container #players li:nth-child(4) {
+    color: #634cc3;
+}
+
+.lobby-container .btn-box {
+    style: flex;
+}
+.lobby-container .btn-box button {
+    background-color: #281ab1;
+    border: 1px solid black;
+    color: white;
+    padding: 15px 25px;
+    border-radius: 5px;
+}
+
+.lobby-container .btn-box button:hover {
+    background-color: #120a61;
+} 
+
+.lobby-container #btnLeaveGame {
+    background-color: #ad6363;
+}
+
+.lobby-container #btnLeaveGame:hover {
+    background-color: #441515;
+}

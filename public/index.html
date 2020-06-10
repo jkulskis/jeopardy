@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Jeopardy</title>
+    <title>J Quiz</title>
     <link rel="stylesheet" href="styles/main.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Acme&display=swap" rel="stylesheet">
   </head>
 
   <body>
@@ -14,11 +15,45 @@
 
     <!-- Main title screen at init -->
     <script id="intro-screen-template" type="text/template">
-      <div class="title">Jeopardy</div>
-      <div class="buttons">
-        <button id="btnCreateGame" class="btn left">CREATE</button>
-        <button id="btnJoinGame" class="btn right">JOIN</button>
-        <div style="clear:both"></div>
+      <div class="title">J Quiz</div>
+      <div class="intro-container">
+        <input type="text" id="playerName" placeholder="Screen Name">
+        <button id="btnCreateGame">CREATE</button>
+        <input type="text" id="gameID" placeholder="Game ID">
+        <button id="btnJoinGame">JOIN</button>
+        <label id="errorMessage" class="error-label"></label>
+      </div>
+    </script>
+
+    <!-- Chat box for game lobby and in game -->
+    <script id="chat-box-template" type="text/template">
+      <ul id="chat-box"></ul>
+      <form action="javascript:void(0);">
+        <input type="text" id="messageBox" autocomplete="off" placeholder="Type a message">
+        <button type="submit" id="send">SEND</button>
+      </form>
+    </script>
+
+    <!-- Lobby Screen -->
+    <script id="lobby-template" type="text/template">
+      <div class="title">J Quiz</div>
+      <div class="lobby-container">
+        <div class="info">Share this link to your friends</div>
+        <div id="gameURL" class="info-big">Error!</div>
+
+        <div class="info">And have them enter this Game ID:</div>
+        <div id="gameID" class="info-big">Error!</div>
+        <div class="info">and then click <strong>JOIN</strong></div>
+
+        <div class="players-container">
+          <div class="info" id="playersHeader">Players</div>
+          <ul id="players"></ul>
+        </div>
+        <div class="btn-box">
+          <button id="btnLeaveGame">LEAVE</button>
+          <button id="btnStartGame">START</button>
+        </div>
+
       </div>
     </script>
 

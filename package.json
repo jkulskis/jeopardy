@@ -1,8 +1,8 @@
 {
-  "name": "jeopardy",
+  "name": "J-Quiz",
   "version": "1.0.0",
-  "description": "Jeopardy with friends",
-  "main": "index.js",
+  "description": "Quiz Game with friends",
+  "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server/server.js",

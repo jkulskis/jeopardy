@@ -15,7 +15,10 @@ const io = socketio(server);
 
 io.on("connection", (socket) => {
   //console.log(`new connection from ${socket.id}`);
-  gameClient.initGame(io, socket);
+  gameClient.playerConnected(io, socket);
+  socket.on("disconnect", () => {
+    gameClient.playerDisconnected(socket);
+  });
 });
 
 server.on("error", (err) => {
