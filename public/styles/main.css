@@ -1,3 +1,7 @@
+html {
+    height: 100%;
+}
+
 html * {
     font-family: 'Acme', sans-serif;
 }
@@ -6,6 +10,8 @@ body {
     background: #eacda3; /* fallback for old browsers */
     background: -webkit-linear-gradient(to right, #eacda3, #d6ae7b); /* Chrome 10-25, Safari 5.1-6 */
     background: linear-gradient(to right, #eacda3, #d6ae7b); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+    height: 100%;
+    margin: 0;
 }
 
 .title {
@@ -13,9 +19,31 @@ body {
     color: white;
     border: black;
     font-weight: bold;
-    font-size: 4em;
+    font-size: 6.5em;
 }
 
+#gameArea {
+    height: 100%;
+}
+
+.noselect {
+  /*  from https://stackoverflow.com/a/4407335/10231083    */
+  -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+     -khtml-user-select: none; /* Konqueror HTML */
+       -moz-user-select: none; /* Old versions of Firefox */
+        -ms-user-select: none; /* Internet Explorer/Edge */
+            user-select: none; /* Non-prefixed version, currently
+                                  supported by Chrome, Edge, Opera and Firefox */
+}
+
+button {
+    cursor: pointer;
+}
+
+.hidden {
+    display: none;
+}
 
 /* Start Screen */
 
@@ -99,6 +127,7 @@ body {
     border: 5px solid white;
     padding: 7px 30px 2px 30px;
     margin: 0;
+    text-align: center;
 }
 
 .players-container #players {
@@ -121,11 +150,11 @@ body {
     color: #444c47;
 }
 
-.players-container #players li:nth-child(3) {
+.players-container #players li:nth-child(3n) {
     color: #a94365;
 }
 
-.players-container #players li:nth-child(4) {
+.players-container #players li:nth-child(4n) {
     color: #634cc3;
 }
 
@@ -150,4 +179,225 @@ body {
 
 .lobby-container #btnLeaveGame:hover {
     background-color: #441515;
+}
+
+/* GamePlay Screen */
+
+.game-section {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+#gameBoard {
+    flex: 18 1 0;
+    display: flex;
+}
+
+.category {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-grow: 1;
+}
+
+
+.cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    align-self: stretch;
+    /*   text-align for when text wraps   */
+    text-align: center;
+    flex: 1 1 0;
+    border: .4vmin solid black;
+    background-color: #000a92;
+    font-size: 4vmin;
+}
+
+
+.cell.header {
+    padding: 0 4px;
+    font-family: 'Staatliches', cursive;
+    cursor: arrow;
+    color: white;
+}
+
+.cell.clue {
+    font-family: 'Anton', sans-serif;
+    cursor: pointer;
+    color: #e2ad6b;
+    -webkit-text-stroke: .3vmin black;
+}
+
+
+.cell.clue:hover {
+    border: .4vmin solid yellow;
+}
+
+.cell.clue.nohover {
+    border: .4vmin solid black !important;
+    cursor: default;
+}
+}
+
+.cell.clue.answered {
+    color: transparent;
+    cursor: default;
+    border: .4vmin solid black;
+}
+
+.cell.clue.answered:hover {
+    cursor: default;
+}
+
+#scoreBoard {
+    display: flex;
+    flex: 2 9 0;
+    justify-content: center;
+    align-items: center;
+    /*     We want the scoreBoard to show during a question     */
+    z-index: 2;
+}
+
+.score-card {
+    flex: 1;
+    max-width: 25%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    margin: 10px;
+    border: 3px solid black;
+    justify-content: center;
+    overflow: hidden;
+    /*   text-align for when text wraps   */
+    text-align: center;
+    flex-grow: 1;
+}
+
+.score-card .name-label {
+    padding: 10px 15px 0 15px;
+    border-bottom: 2px solid black;
+}
+
+.score-card:nth-child(4n+1) .name-label {
+    background-color: #c9e6ff;
+}
+
+.score-card:nth-child(4n+2) .name-label {
+    background-color: #97e1b3;
+}
+
+.score-card:nth-child(4n+3) .name-label {
+    background-color: #cea1d6;
+}
+
+.score-card:nth-child(4n) .name-label {
+    background-color: #df6c64;
+}
+
+.score-card .score-label {
+    background-color: white;
+}
+
+.timer {
+    display: flex;
+    flex-grow: 1;
+    background-color: gray;
+}
+
+.timerBlock {
+    flex: 1;
+    flex-grow: 1;
+    font-size: 5px;
+    background-color: #2e2737;
+}
+
+.timer span {
+    border: 2px solid #675d69;
+    border-right: none;
+}
+
+.timer .timerBlock:last-child {
+    border-right: 2px solid #675d69;
+}
+
+.timer .timerBlock:nth-child(5){
+    background-color: #e30b27;
+}
+
+.fullscreen {
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    top: 0;
+    z-index: 1;
+}
+
+.fullscreen.absolute {
+    position: absolute;
+}
+
+.fullscreen.fixed {
+    position: fixed;
+}
+
+#questionScreen {
+    background-color: #000a92;
+}
+
+/* Add this to limit the height that the question can take up */
+#questionBox {
+    position: fixed;
+    height: 80%;
+    width: 100%;
+    top: 0;
+    display: flex; 
+    flex-direction: column;
+    justify-content: center;
+}
+
+.clue-card-span {
+    margin-bottom: 5px;
+    font-family: 'Staatliches', cursive;
+    text-align: center;
+    color: white;
+    flex: 1 1 0;
+    align-self: stretch;
+    text-shadow: 1px 1px 8px black;
+    font-family: 'Staatliches', cursive;
+    text-align: center;
+    color: white;
+}
+
+#questionText {
+/*     background-color: green; */
+    padding: 3vw 0;
+    /* 5px just in case */
+    margin-bottom: 5px;
+}
+
+#answerText {
+/*     background-color: red; */
+    color: #ffee6a;
+    flex: 1 1 0;
+    padding: 3vw 0 0 0;
+}
+
+.divider {
+    border-bottom: 6px dashed black;
+    margin: 0 10vw;
+}
+
+#gameStatus {
+    flex: 1;
+    padding: 10px;
+    font-size: 2em;
+    justify-content: center;
+    background-color: #a29366;
+    display: flex;
+    z-index: 2;
 }
