@@ -19,7 +19,7 @@ createTimeout = (f, delay) => {
       timeoutFunction();
     },
   };
-}
+};
 
 function Player(socketID) {
   this.id = socketID;
@@ -42,7 +42,7 @@ function Game(socket, gameID) {
   this.currentClueID = null;
   this.currentRound = "round1";
   this.players = {};
-  this.numPlayers = Object.keys(this.players).length;
+  this.getNumPlayers = () => Object.keys(this.players).length;
   this.status = "lobby";
   // r1 & r2 have categories as keys, and these categories have question values as keys
   // which lead to lists of questions...final just has a final jeopardy question
@@ -100,7 +100,7 @@ function Game(socket, gameID) {
       message: `Time is up for ${buzzedPlayerName}!`,
     });
     this.buzzedPlayerID = null;
-    if (this.numPlayers === this.buzzedPlayerIDs.size) {
+    if (this.getNumPlayers() === this.buzzedPlayerIDs.size) {
       io.to(this.id).emit("scoreQuestion", { players: this.buzzedPlayerIDs });
     } else {
       inquireOtherAnswers({ gameID: this.id });
@@ -110,9 +110,9 @@ function Game(socket, gameID) {
 
   this.waitingForAnswersTimeout = () => {
     if (!this.buzzedPlayerIDs.size) {
-      sendClueAnswer({gameID: this.id});
+      sendClueAnswer({ gameID: this.id });
     } else {
-      sendClueAnswer({gameID: this.id});
+      sendClueAnswer({ gameID: this.id });
       io.to(this.id).emit("scoreQuestion", { players: this.buzzedPlayerIDs });
     }
   };
@@ -273,7 +273,8 @@ function emitBoard(data) {
   }
   io.to(game.turnPlayerID).emit("playerHasTurn");
   turnPlayerName = game.players[game.turnPlayerID].name;
-  if (game.numPlayers > 1)
+  console.log(game.getNumPlayers());
+  if (game.getNumPlayers() > 1)
     io.to(data.gameID).emit("showStatus", {
       message: `${turnPlayerName}'s turn!`,
     });
@@ -332,6 +333,7 @@ function clueChosen(data) {
     game.waitingForAnswersTimeout,
     10000
   );
+  io.to(data.gameID).emit("inquireOtherAnswers", { timeout: 10000 });
   game.currentClueID = clueID;
   clue = game.clueMap.get(clueID);
   clue.clientClue.answered = 1;
@@ -358,20 +360,26 @@ function buzzIn(data) {
   game.waitingForAnswersTimeoutHandler.clear();
   game.buzzedPlayerIDs.set(game.buzzedPlayerID, buzzedPlayerName);
   // start the player's personal timer to answer the question
-  game.buzzedPlayerTimeoutHandler = createTimeout(game.buzzedPlayerTimeout, 5000);
-}
-
-function inquireOtherAnswers(data) {
-  game = games[data.gameID];
-  io.to(data.gameID).emit("inquireOtherAnswers");
-  io.to(data.gameID).emit("debug", "3s waiting for answers timeout");
-  game.waitingForAnswersTimeoutHandler = createTimeout(
-    game.waitingForAnswersTimeout,
-    3000
+  game.buzzedPlayerTimeoutHandler = createTimeout(
+    game.buzzedPlayerTimeout,
+    5000
   );
 }
 
+function inquireOtherAnswers(data) {
+  setTimeout(() => {
+    game = games[data.gameID];
+    io.to(data.gameID).emit("inquireOtherAnswers", { timeout: 3000 });
+    io.to(data.gameID).emit("debug", "3s waiting for answers timeout");
+    game.waitingForAnswersTimeoutHandler = createTimeout(
+      game.waitingForAnswersTimeout,
+      3000
+    );
+  }, 1000);
+}
+
 function sendClueAnswer(data) {
+  if (!gameExists(data.gameID)) return 1;
   game = games[data.gameID];
   if (game.currentClueID === null) return 1;
   io.to(data.gameID).emit("showClueAnswer", {
@@ -397,9 +405,10 @@ function afterClueCompleted(data) {
  */
 function joinGame(data) {
   if (!defined(data)) return 1;
-  if (!hasKeys(data, "name")) return 1;
+  if (!hasKeys(data, "name", "gameID")) return 1;
   if (!nameCheck(data.name, this)) return 1;
   players[this.id].name = data.name;
+  data.gameID = data.gameID.toUpperCase();
   result = { gameID: data.gameID, error: null };
   result["playerNames"] = [];
   if (data.gameID in games) {

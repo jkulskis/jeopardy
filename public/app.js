@@ -117,6 +117,42 @@ const IO = {
 };
 
 const App = {
+  timer: {
+    intervalFunction: null,
+    intervalFunctionID: null,
+    interval: null,
+    currentTime: null,
+    clear: () => {
+      clearInterval(App.timer.intervalFunctionID);
+      App.timer.intervalFunction = null;
+      App.timer.interval = null;
+      App.timer.currentTime = null;
+    },
+    stop: () => {
+      clearInterval(App.timer.intervalFunctionID);
+    },
+    start: () => {
+      App.timer.intervalFunctionID = setInterval(
+        App.timer.intervalFunction,
+        App.timer.interval
+      );
+    },
+  },
+
+  setTimer: (interval, currentTime, callback) => {
+    App.timer.clear();
+    App.timer.interval = interval;
+    App.timer.currentTime = currentTime;
+    App.timer.intervalFunction = () => {
+      currentTime -= interval;
+      callback(currentTime);
+      if (currentTime === 0) {
+        App.timer.stop();
+      }
+    };
+    App.timer.start();
+  },
+
   // runs once when everything loads for the first time
   init: () => {
     App.cacheElements();
@@ -230,10 +266,12 @@ const App = {
 
   startGame: () => {
     App.$gameArea.html(App.$templateGamePlay);
+    $("body").addClass("in-game");
   },
 
   createBoard: (board, round) => {
     $("#questionScreen").addClass("hidden");
+    $("#gameBoard").removeClass("hidden");
     $("#questionBox").empty(); // in case there is lag when we show it again
     multiplier = round === "round1" ? 1 : 2;
     let c = 0;
@@ -282,7 +320,7 @@ const App = {
           `<div class="score-label">${player.score}</div>`
         );
         $(`#${player.id}`).append(
-          `<div id="timer-${player.id}" class="timer"></div>`
+          `<div id="timer-${player.id}" class="playerTimer"></div>`
         );
         for (let i = 0; i < 9; i++)
           $(`#timer-${player.id}`).append(
@@ -290,20 +328,20 @@ const App = {
           );
       });
     }
-    $(".name-label").fitText(1.5, {
-      minFontSize: "12px",
-      maxFontSize: "22px",
-    });
-    $(".score-label").fitText(1.5, {
-      minFontSize: "12px",
-      maxFontSize: "22px",
-    });
+    // $(".name-label").fitText(1.5, {
+    //   minFontSize: "12px",
+    //   maxFontSize: "22px",
+    // });
+    // $(".score-label").fitText(1.5, {
+    //   minFontSize: "12px",
+    //   maxFontSize: "22px",
+    // });
   },
 
   showClue: (question) => {
     // console.log(question);
+    $("#gameBoard").addClass("hidden");
     $("#questionBox").empty(); // remove anything left over here
-    $("#questionScreen").removeClass("hidden");
     $("#questionBox").append(
       `<span id="questionText" class="clue-card-span">${question}</span>`
     );
@@ -313,11 +351,15 @@ const App = {
     $("#questionBox").append(
       `<span id="answerText" class="clue-card-span">&nbsp;</span>`
     );
-    $("#questionText").fitText(1, { maxFontSize: "95px" });
+    $("#questionScreen").removeClass("hidden");
+    // $("#questionText").fitText(1, { maxFontSize: "95px" });
     App.Game.setScreen("qWaiting");
-    $(document).on("keyup", (e) => {
+    $(document).on("click keyup", (e) => {
       //console.log(e.keyCode);
-      if (e.keyCode === 32) {
+      if (
+        e.keyCode === 32 ||
+        (e.handleObj.type === "click" && e.button === 0)
+      ) {
         App.pressAnswerBuzzer();
       }
     });
@@ -336,8 +378,14 @@ const App = {
   },
 
   playerTimerCountdown: (playerID) => {
+    App.timer.clear();
     App.Game.buzzedPlayerID = playerID;
-    console.log("5s countdown starts now");
+    playerTimer = $(`#timer-${playerID}`);
+    playerTimer.attr("class", "playerTimer time-5000");
+    App.setTimer(1000, 5000, (currentTime) => {
+      if (!currentTime) playerTimer.attr("class", "playerTimer");
+      else playerTimer.attr("class", `playerTimer time-${currentTime}`);
+    });
     // start to make timer go
   },
 
@@ -345,13 +393,11 @@ const App = {
     // for now, just show a status. May change this later
     App.Game.setScreen("qWaiting");
     App.Game.buzzedPlayerID = null;
-    countdown = (s) => {
-      setTimeout((s) => {
-        App.showStatus(`${s} seconds to buzz in a different answer`);
-        if (s) countdown(s - 1);
-      }, 1000);
-    };
-    countdown(3);
+    App.showStatus(`${data.timeout / 1000} seconds left to buzz in`);
+    App.setTimer(1000, data.timeout, (currentTime) => {
+      if (!currentTime) App.showStatus("Time's up!");
+      else App.showStatus(`${currentTime / 1000} seconds left to buzz in`);
+    });
   },
 
   getClueAnswer: () => {
@@ -362,7 +408,7 @@ const App = {
   showClueAnswer: (answer) => {
     $("#clueDivider").removeClass("hidden");
     $("#answerText").text(answer);
-    $("#answerText").fitText(1, { maxFontSize: "95px" });
+    // $("#answerText").fitText(1, { maxFontSize: "95px" });
   },
 
   clueComplete: () => {

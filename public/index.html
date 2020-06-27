@@ -71,17 +71,17 @@
     <!-- GamePlay Screen (While Game is in Session) -->
     <script id="gamePlay-template" type="text/template">
       <section class="game-section">
+        <div id="messageBox">
+          <span id="gameStatus">Welcome to J-Quiz!</span>
+          <!-- Game Status Messages are shown here -->
+        </div>
         <div id="gameBoard">
           <!-- div category cols with div children that are clue tiles -->
         </div>
-        <div id="questionScreen" class="fullscreen fixed hidden">
+        <div id="questionScreen" class="hidden">
           <div id="questionBox">
             <!-- When a clue tile is clicked and question shows up  -->
           </div>
-        </div>
-        <div id="messageBox">
-          <span id="gameStatus">&nbsp;</span>
-          <!-- Game Status Messages are shown here -->
         </div>
         <div id="scoreBoard">
           <!-- Player Names with their scores -->

@@ -7,11 +7,15 @@ html * {
 }
 
 body {
+    height: 100%;
+    margin: 0;
     background: #eacda3; /* fallback for old browsers */
     background: -webkit-linear-gradient(to right, #eacda3, #d6ae7b); /* Chrome 10-25, Safari 5.1-6 */
     background: linear-gradient(to right, #eacda3, #d6ae7b); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
-    height: 100%;
-    margin: 0;
+}
+
+body.in-game {
+    background: #000a92;
 }
 
 .title {
@@ -42,7 +46,7 @@ button {
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 /* Start Screen */
@@ -104,7 +108,7 @@ button {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-top: 20px;
+    margin: 20px 0;
 }
 
 .lobby-container .info {
@@ -259,6 +263,8 @@ button {
     flex: 2 9 0;
     justify-content: center;
     align-items: center;
+    font-size: 2.5vmin;
+    background-color: #00456a;
     /*     We want the scoreBoard to show during a question     */
     z-index: 2;
 }
@@ -269,8 +275,8 @@ button {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    margin: 10px;
-    border: 3px solid black;
+    margin: 20px;
+    border: 0.4vmin solid black;
     justify-content: center;
     overflow: hidden;
     /*   text-align for when text wraps   */
@@ -303,7 +309,7 @@ button {
     background-color: white;
 }
 
-.timer {
+.playerTimer {
     display: flex;
     flex-grow: 1;
     background-color: gray;
@@ -312,20 +318,43 @@ button {
 .timerBlock {
     flex: 1;
     flex-grow: 1;
-    font-size: 5px;
+    font-size: 0.4vh;
     background-color: #2e2737;
 }
 
-.timer span {
-    border: 2px solid #675d69;
+.playerTimer span {
+    border: 0.2vh solid #675d69;
     border-right: none;
 }
 
-.timer .timerBlock:last-child {
-    border-right: 2px solid #675d69;
+.playerTimer .timerBlock:last-child {
+    border-right: 0.2vh solid #675d69;
 }
 
-.timer .timerBlock:nth-child(5){
+.playerTimer.time-5000 .timerBlock:nth-child(n){
+    background-color: #e30b27;
+}
+
+.playerTimer.time-4000 .timerBlock:nth-last-child(2n),
+.playerTimer.time-4000 .timerBlock:nth-child(4n+3),
+.playerTimer.time-4000 .timerBlock:nth-child(5) {
+    background-color: #e30b27;
+}
+
+.playerTimer.time-3000 .timerBlock:nth-child(4n-1),
+.playerTimer.time-3000 .timerBlock:nth-child(4),
+.playerTimer.time-3000 .timerBlock:nth-child(5),
+.playerTimer.time-3000 .timerBlock:nth-child(6) {
+    background-color: #e30b27;
+}
+
+.playerTimer.time-2000 .timerBlock:nth-child(4),
+.playerTimer.time-2000 .timerBlock:nth-child(5),
+.playerTimer.time-2000 .timerBlock:nth-child(6) {
+    background-color: #e30b27;
+}
+
+.playerTimer.time-1000 .timerBlock:nth-child(5) {
     background-color: #e30b27;
 }
 
@@ -347,17 +376,21 @@ button {
 
 #questionScreen {
     background-color: #000a92;
+    display: flex;
+    flex: 20;
+    flex-direction: column;
 }
 
 /* Add this to limit the height that the question can take up */
 #questionBox {
+    flex: 8;
     position: fixed;
-    height: 80%;
     width: 100%;
-    top: 0;
+    margin-top: 20px;
     display: flex; 
     flex-direction: column;
     justify-content: center;
+    font-size: 9vmin;
 }
 
 .clue-card-span {
@@ -392,12 +425,16 @@ button {
     margin: 0 10vw;
 }
 
+#messageBox {
+    flex: 1;
+    z-index: 2;
+}
+
 #gameStatus {
     flex: 1;
     padding: 10px;
-    font-size: 2em;
+    font-size: 4vmin;
     justify-content: center;
-    background-color: #a29366;
+    background-color: #3438b0;
     display: flex;
-    z-index: 2;
 }
