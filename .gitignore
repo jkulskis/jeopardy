@@ -1,3 +1,5 @@
 node_modules
-data
+JEOPARDY_QUESTIONS.json
+processed_jeopardy_questions.json
 .pytest*
+j-quiz.pem

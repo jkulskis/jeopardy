@@ -30,20 +30,34 @@ function Player(socketID) {
   this.disconnected = false;
 }
 
+const gameStatus = {
+  LOBBY: "lobby", // game is still in lobby phase
+  PLAYERBUZZED: "playerBuzzed", // a player buzzed in
+  WAITINGBUZZ: "waitingBuzz", // we are waiting for a player to buzz in
+  WAITINGCLUE: "waitingClue", // we are waiting for a clue to be chosen
+  SCORING: "scoring", // the round is being scored
+};
+
 function Game(socket, gameID) {
   this.id = gameID;
   this.ownerID = socket.id;
+  this.numAnsweredQuestions = 0;
+  this.roundSizes = { round1: 0, round2: 0 };
   // id of the player who's turn it is (they get to choose the next clue)
   this.turnPlayerID = socket.id;
+  // set this to the player ID we want to change to...only actually set the new
+  // turn player ID once the scoring is complete
+  this.newTurnPlayerID = null;
   // id of the player that is currently buzzed in
   this.buzzedPlayerID = null;
   // ids of ther players that have answered the last question
   this.buzzedPlayerIDs = new Map();
   this.currentClueID = null;
+  this.currentClueValue = null;
   this.currentRound = "round1";
   this.players = {};
   this.getNumPlayers = () => Object.keys(this.players).length;
-  this.status = "lobby";
+  this.status = gameStatus.LOBBY;
   // r1 & r2 have categories as keys, and these categories have question values as keys
   // which lead to lists of questions...final just has a final jeopardy question
   // the client board only has category names and ids of questions as keys
@@ -63,7 +77,8 @@ function Game(socket, gameID) {
       }
       chosenCategories.set(category, 0);
       // add questions from this category to the board
-      clientRound = i < 6 ? this.clientBoard.round1 : this.clientBoard.round2;
+      round = i < 6 ? "round1" : "round2";
+      clientRound = this.clientBoard[round];
       clientRound[category] = [];
       for (let value in questions[category]) {
         // list that are at this value...we will choose a random one from it
@@ -78,6 +93,7 @@ function Game(socket, gameID) {
         clientRound[category].push(clientClue);
         randomValueClue["clientClue"] = clientClue;
         this.clueMap.set(randomValueClue["id"], randomValueClue);
+        this.roundSizes[round] += 1;
       }
     }
     randomFinal =
@@ -99,22 +115,13 @@ function Game(socket, gameID) {
     io.to(gameID).emit("showStatus", {
       message: `Time is up for ${buzzedPlayerName}!`,
     });
-    this.buzzedPlayerID = null;
-    if (this.getNumPlayers() === this.buzzedPlayerIDs.size) {
-      io.to(this.id).emit("scoreQuestion", { players: this.buzzedPlayerIDs });
-    } else {
-      inquireOtherAnswers({ gameID: this.id });
-    }
+    inquireOtherAnswers({ gameID: this.id });
   };
   this.buzzedPlayerTimeoutHandler = null;
 
   this.waitingForAnswersTimeout = () => {
-    if (!this.buzzedPlayerIDs.size) {
-      sendClueAnswer({ gameID: this.id });
-    } else {
-      sendClueAnswer({ gameID: this.id });
-      io.to(this.id).emit("scoreQuestion", { players: this.buzzedPlayerIDs });
-    }
+    sendClueAnswer({ gameID: this.id });
+    emitScoreQuestion({ gameID: this.id });
   };
   this.waitingForAnswersTimeoutHandler = null;
 }
@@ -154,7 +161,9 @@ exports.playerDisconnected = (socket) => {
             )
               delete games[players[socket.id].gameID];
             else {
-              if (games[players[socket.id].gameID].status === "lobby") {
+              if (
+                games[players[socket.id].gameID].status === gameStatus.LOBBY
+              ) {
                 resetLobby(
                   players[socket.id].gameID,
                   players[socket.id].isOwner
@@ -200,9 +209,9 @@ nameCheck = (name, socket) => {
     });
     return false;
   }
-  if (name.length > 11) {
+  if (name.length > 19) {
     socket.emit("showError", {
-      error: "Name must be less than 12 characters long",
+      error: "Name must be less than 20 characters long",
     });
     return false;
   }
@@ -233,8 +242,9 @@ initSession = (socket) => {
   socket.on("startGame", startGame);
   socket.on("clueChosen", clueChosen);
   socket.on("buzzIn", buzzIn);
-  socket.on("getClueAnswer", sendClueAnswer);
-  socket.on("clueComplete", afterClueCompleted);
+  socket.on("buzzOut", buzzOut);
+  socket.on("modifyPlayerScore", modifyPlayerScore);
+  socket.on("clueCompleted", afterClueCompleted);
 };
 
 function startGame(data) {
@@ -248,71 +258,90 @@ function startGame(data) {
   io.to(data.gameID).emit("startGame");
   games[data.gameID].fillBoards();
   games[data.gameID].currentRound = "round1";
+  updateScoreBoard({ gameID: data.gameID, reset: true });
   emitBoard({ pSock: pSock, gameID: data.gameID, round: "round1" });
-  updateScoreboard({ gameID: data.gameID, gameStarted: true });
 }
 
 /**
  *
- * @param {pSock: socket of player, gameID: id of game, round: *, solo: emit board to pSock only} data
+ * @param {gameID: id of game, round: *} data
  */
 function emitBoard(data) {
   game = games[data.gameID];
   clientBoard = game.clientBoard;
-  if (!data.solo) {
-    io.to(data.gameID).emit("createBoard", {
-      board: clientBoard[game.currentRound],
-      round: game.currentRound,
-    });
-    io.to(data.gameID).emit("debug", clientBoard);
-  } else {
-    pSock.emit("createBoard", {
-      board: clientBoard[data.currentRound],
-      round: game.currentRound,
-    });
+  roundChanged = false;
+  if (game.numAnsweredQuestions === game.roundSizes[game.currentRound]) {
+    if (game.currentRound === "round1") game.currentRound = "round2";
+    game.numAnsweredQuestions = 0;
+    roundChanged = true;
+    if (game.getNumPlayers() > 1) {
+      game.newTurnPlayerID = null;
+      for (let playerID in game.players) {
+        if (
+          game.newTurnPlayerID === null ||
+          game.players[game.newTurnPlayerID].score >
+            game.players[playerID].score
+        )
+          game.newTurnPlayerID = playerID;
+      }
+    }
+  }
+  io.to(data.gameID).emit("createBoard", {
+    board: clientBoard[game.currentRound],
+    round: game.currentRound,
+  });
+  io.to(data.gameID).emit("debug", clientBoard);
+  if (game.newTurnPlayerID) {
+    if (game.newTurnPlayerID === game.turnPlayerID) game.newTurnPlayerID = null;
+    else game.turnPlayerID = game.newTurnPlayerID;
   }
   io.to(game.turnPlayerID).emit("playerHasTurn");
   turnPlayerName = game.players[game.turnPlayerID].name;
-  console.log(game.getNumPlayers());
-  if (game.getNumPlayers() > 1)
-    io.to(data.gameID).emit("showStatus", {
-      message: `${turnPlayerName}'s turn!`,
-    });
-  // data.pSock.emit("debug", {
-  //   board: clientBoard[data.round],
-  //   round: data.round,
-  // });
+  if (game.getNumPlayers() > 1) {
+    if (roundChanged) {
+      io.to(data.gameID).emit("showStatus", {
+        message: `Welcome to Round 2, points are doubled. ${turnPlayerName} now has Control of the Board!`,
+      });
+    } else if (game.newTurnPlayerID) {
+      io.to(data.gameID).emit("showStatus", {
+        message: `${turnPlayerName} now has Control of the Board!`,
+      });
+    } else {
+      io.to(data.gameID).emit("showStatus", {
+        message: `${turnPlayerName}'s turn!`,
+      });
+    }
+  } else {
+    if (roundChanged) {
+      io.to(data.gameID).emit("showStatus", {
+        message: "Welcome to Round 2, points are doubled!",
+      });
+    } else {
+      io.to(data.gameID).emit("showStatus", {
+        message: "Choose a Clue",
+      });
+    }
+  }
+  game.status = gameStatus.WAITINGCLUE;
 }
 
 /**
  *
- * @param {gameID: *, gameStarted: true/false, playerIDs: IDs of players to update} data
+ * @param {gameID: *, reset: true if reforming the score board} data
  */
-function updateScoreboard(data) {
+function updateScoreBoard(data) {
   playerScores = [];
-  if (data.gameStarted) {
-    for (let playerID in games[data.gameID].players) {
-      player = games[data.gameID].players[playerID];
-      playerScores.push({
-        id: player.id,
-        name: player.name,
-        score: player.score,
-      });
-    }
-    return io
-      .to(data.gameID)
-      .emit("updateScoreBoard", { reset: true, players: playerScores });
-  }
-  data.playerIDs.forEach((playerID) => {
+  for (let playerID in games[data.gameID].players) {
     player = games[data.gameID].players[playerID];
     playerScores.push({
       id: player.id,
       name: player.name,
       score: player.score,
     });
-    return io
-      .to(data.gameID)
-      .emit("updateScoreBoard", { players: playerScores });
+  }
+  io.to(data.gameID).emit("updateScoreBoard", {
+    reset: data.reset,
+    players: playerScores,
   });
 }
 
@@ -327,6 +356,8 @@ function clueChosen(data) {
   if (game.turnPlayerID !== this.id) return 1;
   if (!hasKeys(data, "clueID")) return 1;
   if (game.clueMap.has(clueID) === false) return 1;
+  if (game.clueMap.get(clueID).answered) return 1;
+  if (game.status !== gameStatus.WAITINGCLUE) return 1;
   // DEBUG
   io.to(data.gameID).emit("debug", "10s waiting for answers timeout");
   game.waitingForAnswersTimeoutHandler = createTimeout(
@@ -335,12 +366,17 @@ function clueChosen(data) {
   );
   io.to(data.gameID).emit("inquireOtherAnswers", { timeout: 10000 });
   game.currentClueID = clueID;
+  game.currentClueValue = game.clueMap.get(game.currentClueID).value;
+  if (game.currentRound === "round2") game.currentClueValue *= 2;
   clue = game.clueMap.get(clueID);
-  clue.clientClue.answered = 1;
+  clue.answered = 1;
+  clue.clientClue.answered = 1; // mark as answered since it will be "answered" no matter what happens after it is shown
+  game.numAnsweredQuestions += 1;
   // sending as object just in case we want to send other info like show #, date, etc.
   io.to(data.gameID).emit("showClue", {
     question: clue.question,
   });
+  game.status = gameStatus.WAITINGBUZZ;
 }
 
 function buzzIn(data) {
@@ -348,6 +384,8 @@ function buzzIn(data) {
   game = games[data.gameID];
   if (game.buzzedPlayerID !== null) return 1;
   if (game.buzzedPlayerIDs.has(this.id)) return 1; // can't buzz in twice
+  if (game.status !== gameStatus.WAITINGBUZZ) return 1;
+  game.status = gameStatus.PLAYERBUZZED;
   game.buzzedPlayerID = this.id;
   buzzedPlayerName = game.players[game.buzzedPlayerID].name;
   io.to(data.gameID).emit("playerTimerCountdown", {
@@ -358,7 +396,12 @@ function buzzIn(data) {
   });
   // stop the timeout for all answers (timeout if no one buzzes in)
   game.waitingForAnswersTimeoutHandler.clear();
-  game.buzzedPlayerIDs.set(game.buzzedPlayerID, buzzedPlayerName);
+  // set the buzz status to timeout...if they end up buzzing out, change
+  // this to complete
+  game.buzzedPlayerIDs.set(game.buzzedPlayerID, {
+    name: buzzedPlayerName,
+    buzzStatus: "timeout",
+  });
   // start the player's personal timer to answer the question
   game.buzzedPlayerTimeoutHandler = createTimeout(
     game.buzzedPlayerTimeout,
@@ -366,11 +409,44 @@ function buzzIn(data) {
   );
 }
 
+function buzzOut(data) {
+  if (errorDataGamePlayer(data, this)) return 1;
+  game = games[data.gameID];
+  if (game.status !== gameStatus.PLAYERBUZZED) return 1;
+  if (game.buzzedPlayerID !== this.id) return 1;
+
+  io.to(data.gameID).emit("playerTimerStopCountdown", {
+    playerID: game.buzzedPlayerID,
+  });
+  buzzedPlayerName = game.players[game.buzzedPlayerID].name;
+  io.to(data.gameID).emit("showStatus", {
+    message: `${buzzedPlayerName} Finished Answering!`,
+  });
+  // stop the timeout for all answers (timeout if no one buzzes in)
+  game.buzzedPlayerTimeoutHandler.clear();
+  game.buzzedPlayerIDs.set(game.buzzedPlayerID, {
+    name: buzzedPlayerName,
+    buzzStatus: "complete",
+  });
+  inquireOtherAnswers({ gameID: data.gameID });
+}
+
 function inquireOtherAnswers(data) {
+  game = games[data.gameID];
+  game.buzzedPlayerID = null;
+  if (game.getNumPlayers() === game.buzzedPlayerIDs.size) {
+    game.gameStatus = gameStatus.SCORING;
+    sendClueAnswer({ gameID: game.id });
+    emitScoreQuestion({ gameID: game.id });
+    return 0;
+  }
+  game.status = gameStatus.WAITINGBUZZ;
+  // wait a second so that the time's up message doesn't get covered
   setTimeout(() => {
-    game = games[data.gameID];
-    io.to(data.gameID).emit("inquireOtherAnswers", { timeout: 3000 });
-    io.to(data.gameID).emit("debug", "3s waiting for answers timeout");
+    // could have buzzed in during this 1 second timeframe
+    // if that is so, then don't need to wait for new answers
+    if (game.status !== gameStatus.WAITINGBUZZ) return;
+    io.to(game.id).emit("inquireOtherAnswers", { timeout: 3000 });
     game.waitingForAnswersTimeoutHandler = createTimeout(
       game.waitingForAnswersTimeout,
       3000
@@ -385,16 +461,83 @@ function sendClueAnswer(data) {
   io.to(data.gameID).emit("showClueAnswer", {
     answer: game.getCurrentAnswer(),
   });
-  game.currentClueID = null;
+}
+
+function emitScoreQuestion(data) {
+  game = games[data.gameID];
+  for (let [playerID, playerInfo] of game.buzzedPlayerIDs.entries()) {
+    if (playerInfo.buzzStatus === "timeout") {
+      // early guess they lose points if timeout...having it red automatically
+      // should also discourage players from not buzzing out, which should
+      // ultimately make the games run faster
+      game.players[playerID].score -= game.currentClueValue;
+      game.buzzedPlayerIDs.get(playerID)["scoreState"] = "negative";
+    } else {
+      game.buzzedPlayerIDs.get(playerID)["scoreState"] = "neutral";
+    }
+    game.buzzedPlayerIDs.get(playerID)["score"] = game.players[playerID].score;
+  }
+  updateScoreBoard({ gameID: data.gameID });
+  io.to(game.id).emit("scoreQuestion", {
+    players: Object.fromEntries(game.buzzedPlayerIDs),
+  });
+  game.status = gameStatus.SCORING;
+  message = game.buzzedPlayerIDs.size === 0 ? "" : "Confirming Player Scores:";
+  setTimeout(() => {
+    if (game.status === gameStatus.WAITINGCLUE) return;
+    io.to(game.id).emit("showStatus", {
+      message: `${message} Waiting for game owner`,
+    });
+    io.to(game.ownerID).emit("showStatus", {
+      message: `${message} Press Space to Continue`,
+    });
+  }, 0);
+}
+
+function modifyPlayerScore(data) {
+  if (errorDataGamePlayer(data, this)) return 1;
+  game = games[data.gameID];
+  if (game.status !== gameStatus.SCORING) return 1;
+  if (game.ownerID !== this.id) return 1;
+  if (game.buzzedPlayerIDs.has(data.playerID));
+
+  playerScoreState = game.buzzedPlayerIDs.get(data.playerID)["scoreState"];
+  newPlayerScoreState = null;
+  if (playerScoreState === "negative") {
+    newPlayerScoreState = "neutral";
+    if (game.newTurnPlayerID === data.playerID) game.newTurnPlayerID = null;
+    game.players[data.playerID].score += game.currentClueValue;
+  } else if (playerScoreState === "neutral") {
+    newPlayerScoreState = "positive";
+    if (game.turnPlayerID !== data.playerID)
+      game.newTurnPlayerID = data.playerID;
+    game.players[data.playerID].score += game.currentClueValue;
+  } else if (playerScoreState === "positive") {
+    if (game.newTurnPlayerID === data.playerID) game.newTurnPlayerID = null;
+    newPlayerScoreState = "negative";
+    game.players[data.playerID].score -= 2 * game.currentClueValue;
+  }
+  game.buzzedPlayerIDs.get(data.playerID)["scoreState"] = newPlayerScoreState;
+  game.buzzedPlayerIDs.get(data.playerID)["score"] =
+    game.players[data.playerID].score;
+  io.to(game.id).emit("updateScoreBoardConfirming", {
+    playerID: data.playerID,
+    playerInfo: game.buzzedPlayerIDs.get(data.playerID),
+  });
 }
 
 function afterClueCompleted(data) {
   if (errorDataGamePlayer(data, this)) return 1;
   game = games[data.gameID];
-  if (game.currentClueID !== null) return 1;
+  if (game.ownerID !== this.id) return 1;
+  if (game.currentClueID === null) return 1;
+  game.currentClueID = null;
+  game.currentClueValue = null;
+  game.buzzedPlayerIDs = new Map();
+  updateScoreBoard({ gameID: data.gameID, reset: true });
   emitBoard({
     pSock: this,
-    gameID: data.gameID,
+    gameID: game.id,
     round: game.currentRound,
   });
 }

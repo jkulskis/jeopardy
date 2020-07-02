@@ -8,6 +8,7 @@ html * {
 
 body {
     height: 100%;
+    touch-action: manipulation;
     margin: 0;
     background: #eacda3; /* fallback for old browsers */
     background: -webkit-linear-gradient(to right, #eacda3, #d6ae7b); /* Chrome 10-25, Safari 5.1-6 */
@@ -163,7 +164,7 @@ button {
 }
 
 .lobby-container .btn-box {
-    style: flex;
+    display: flex;
 }
 .lobby-container .btn-box button {
     background-color: #281ab1;
@@ -171,6 +172,7 @@ button {
     color: white;
     padding: 15px 25px;
     border-radius: 5px;
+    margin: 0 2.5px;
 }
 
 .lobby-container .btn-box button:hover {
@@ -227,6 +229,7 @@ button {
     padding: 0 4px;
     font-family: 'Staatliches', cursive;
     cursor: arrow;
+    font-size: 4vmin;
     color: white;
 }
 
@@ -234,6 +237,7 @@ button {
     font-family: 'Anton', sans-serif;
     cursor: pointer;
     color: #e2ad6b;
+    font-size: 7vmin;
     -webkit-text-stroke: .3vmin black;
 }
 
@@ -245,7 +249,6 @@ button {
 .cell.clue.nohover {
     border: .4vmin solid black !important;
     cursor: default;
-}
 }
 
 .cell.clue.answered {
@@ -284,6 +287,11 @@ button {
     flex-grow: 1;
 }
 
+.score-card.confirming:hover {
+    cursor: pointer;
+    opacity: 0.7;
+}
+
 .score-card .name-label {
     padding: 10px 15px 0 15px;
     border-bottom: 2px solid black;
@@ -305,8 +313,24 @@ button {
     background-color: #df6c64;
 }
 
-.score-card .score-label {
+.score-label {
     background-color: white;
+}
+
+.score-label.negative {
+    background-color: red;
+}
+
+.score-label.neutral {
+    background-color: orange;
+}
+
+.score-label.positive {
+    background-color: green;
+}
+
+.score-label.scoring:hover {
+    cursor: pointer;
 }
 
 .playerTimer {
@@ -408,7 +432,7 @@ button {
 
 #questionText {
 /*     background-color: green; */
-    padding: 3vw 0;
+    padding: 3vh 3vw;
     /* 5px just in case */
     margin-bottom: 5px;
 }
@@ -417,7 +441,7 @@ button {
 /*     background-color: red; */
     color: #ffee6a;
     flex: 1 1 0;
-    padding: 3vw 0 0 0;
+    padding: 3vh 3vw;
 }
 
 .divider {

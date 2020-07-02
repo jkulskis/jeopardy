@@ -1,7 +1,6 @@
 const IO = {
   init: () => {
     IO.socket = io();
-    App.Player.sockID = IO.sockID;
     IO.bindEvents();
   },
 
@@ -21,8 +20,15 @@ const IO = {
     IO.socket.on("showClueAnswer", IO.onShowClueAnswer);
     IO.socket.on("playerHasTurn", IO.onTurn);
     IO.socket.on("playerTimerCountdown", IO.onPlayerTimerCountdown);
-    IO.socket.on("inquireOtherAnswers", (data) => {
-      App.inquireOtherAnswers(data);
+    IO.socket.on("inquireOtherAnswers", App.inquireOtherAnswers);
+    IO.socket.on("playerTimerStopCountdown", (data) => {
+      App.playerTimerStopCountdown(data.playerID);
+    });
+    IO.socket.on("scoreQuestion", (data) => {
+      App.scoreQuestion(data.players);
+    });
+    IO.socket.on("updateScoreBoardConfirming", (data) => {
+      App.updateScoreBoardConfirming(data.playerID, data.playerInfo);
     });
     // other
     IO.socket.on("makeOwner", IO.onMakeOwner);
@@ -34,6 +40,7 @@ const IO = {
 
   onConnected: (data) => {
     console.log(data.message);
+    App.Player.id = IO.socket.id;
   },
 
   onMakeOwner: () => {
@@ -157,6 +164,9 @@ const App = {
   init: () => {
     App.cacheElements();
     App.showInitScreen();
+    App.mobile = window.matchMedia(
+      "only screen and (max-width: 760px)"
+    ).matches;
     App.bindEvents();
 
     // initialize the fastclick library
@@ -233,14 +243,26 @@ const App = {
     App.$doc.on("click", "#btnStartGame", App.onStartClick);
     App.$doc.on("change", "#playerName", App.Player.saveName);
     // gamePlay screen
-    App.$doc.on("click", ".cell.clue", function () {
-      App.onClueClick($(this).attr("id"));
-    });
+    App.clueClick.enable();
   },
 
-  onClueClick: (clueID) => {
-    if (App.Player.hasTurn)
-      IO.socket.emit("clueChosen", { gameID: App.Game.gameID, clueID: clueID });
+  clueClick: {
+    enable: () => {
+      App.$doc.on("click", ".cell.clue", function () {
+        App.clueClick.onClueClick($(this).attr("id"));
+      });
+    },
+    disable: () => {
+      App.$doc.off("click");
+    },
+    onClueClick: (clueID) => {
+      if (App.Player.hasTurn) {
+        IO.socket.emit("clueChosen", {
+          gameID: App.Game.gameID,
+          clueID: clueID,
+        });
+      }
+    },
   },
 
   onStartClick: () => {
@@ -304,30 +326,36 @@ const App = {
     }
     $(".cell.header").fitText(0.8);
     $(".cell.clue").fitText(0.4);
+    App.clueClick.enable();
   },
 
   updateScoreBoard: (players, reset) => {
     if (reset) {
-      players.forEach((player) => {
-        console.log(JSON.stringify(player));
+      $("#scoreBoard").empty();
+    }
+    players.forEach((player) => {
+      console.log(JSON.stringify(player));
+      if (reset) {
         $("#scoreBoard").append(
-          `<div id="${player.id}" class="score-card"></div>`
+          `<div id="card-${player.id}" class="score-card"></div>`
         );
-        $(`#${player.id}`).append(
-          `<div class="name-label">${player.name}</div>`
+        $(`#card-${player.id}`).append(
+          `<div class="name-label noselect">${player.name}</div>`
         );
-        $(`#${player.id}`).append(
-          `<div class="score-label">${player.score}</div>`
+        $(`#card-${player.id}`).append(
+          `<div class="score-label noselect">${player.score}</div>`
         );
-        $(`#${player.id}`).append(
+        $(`#card-${player.id}`).append(
           `<div id="timer-${player.id}" class="playerTimer"></div>`
         );
         for (let i = 0; i < 9; i++)
           $(`#timer-${player.id}`).append(
-            `<span class="timerBlock">&nbsp;</span>`
+            `<span class="timerBlock noselect">&nbsp;</span>`
           );
-      });
-    }
+      } else {
+        $(`#card-${player.id} .score-label`).text(player.score);
+      }
+    });
     // $(".name-label").fitText(1.5, {
     //   minFontSize: "12px",
     //   maxFontSize: "22px",
@@ -353,7 +381,7 @@ const App = {
     );
     $("#questionScreen").removeClass("hidden");
     // $("#questionText").fitText(1, { maxFontSize: "95px" });
-    App.Game.setScreen("qWaiting");
+    App.Game.setScreen("waitingPlayerBuzz");
     $(document).on("click keyup", (e) => {
       //console.log(e.keyCode);
       if (
@@ -366,20 +394,23 @@ const App = {
   },
 
   pressAnswerBuzzer: () => {
-    if (App.Game.screen === "qWaiting" && !App.Player.buzzedIn) {
-      // App.getClueAnswer();
+    console.log(App.Player.buzzedIn);
+    if (App.Game.screen === "waitingPlayerBuzz" && !App.Player.buzzedIn) {
       IO.socket.emit("buzzIn", { gameID: App.Game.gameID });
       // even if they're not the first to buzz in, it will still be answering
       // if someone beat them to it
-      App.Game.setScreen("qAnswering");
-      // $(document).off("keyup");
-      // App.clueComplete();
+      App.Game.setScreen("playerBuzzedIn");
+    } else if (App.Game.screen === "playerBuzzedIn" && App.Player.buzzedIn) {
+      IO.socket.emit("buzzOut", { gameID: App.Game.gameID });
     }
   },
 
   playerTimerCountdown: (playerID) => {
     App.timer.clear();
     App.Game.buzzedPlayerID = playerID;
+    if (App.Player.id === playerID) {
+      App.Player.buzzedIn = true;
+    }
     playerTimer = $(`#timer-${playerID}`);
     playerTimer.attr("class", "playerTimer time-5000");
     App.setTimer(1000, 5000, (currentTime) => {
@@ -389,10 +420,21 @@ const App = {
     // start to make timer go
   },
 
+  playerTimerStopCountdown: (playerID) => {
+    App.timer.clear();
+    App.Game.buzzedPlayerID = null;
+    // no one will be buzzed in if this is sent
+    App.Player.buzzedIn = false;
+    playerTimer = $(`#timer-${playerID}`);
+    // set the timer back to a normal non-buzzed class
+    playerTimer.attr("class", "playerTimer");
+  },
+
   inquireOtherAnswers: (data) => {
     // for now, just show a status. May change this later
-    App.Game.setScreen("qWaiting");
+    App.Game.setScreen("waitingPlayerBuzz");
     App.Game.buzzedPlayerID = null;
+    App.Player.buzzedIn = false;
     App.showStatus(`${data.timeout / 1000} seconds left to buzz in`);
     App.setTimer(1000, data.timeout, (currentTime) => {
       if (!currentTime) App.showStatus("Time's up!");
@@ -400,30 +442,86 @@ const App = {
     });
   },
 
-  getClueAnswer: () => {
-    if ($("answerText").children().length === 0)
-      IO.socket.emit("getClueAnswer", { gameID: App.Game.gameID });
-  },
-
   showClueAnswer: (answer) => {
     $("#clueDivider").removeClass("hidden");
     $("#answerText").text(answer);
     // $("#answerText").fitText(1, { maxFontSize: "95px" });
+    App.clueClick.disable();
   },
 
-  clueComplete: () => {
-    IO.socket.emit("clueComplete", { gameID: App.Game.gameID });
+  updateScoreBoardConfirming: (playerID, playerInfo) => {
+    // updates the colors and makes the owner have a more click
+    // friendly pallet with the confirming class
+    buzzStatus = playerInfo.buzzStatus;
+    scoreState = playerInfo.scoreState;
+    score = playerInfo.score;
+    if (App.Player.isOwner) $(`#card-${playerID}`).addClass("confirming");
+    $(`#card-${playerID} .score-label`).attr(
+      "class",
+      `score-label ${scoreState} noselect`
+    );
+    $(`#card-${playerID} .score-label`).text(score);
+  },
+
+  scoreQuestionClick: {
+    enable: () => {
+      $(".score-card.confirming").on("click", (e) => {
+        // if (e.target != this) return; // on the child
+        if (e.button === 0) {
+          playerID = e.target.closest(".score-card").id.slice(5);
+          IO.socket.emit("modifyPlayerScore", {
+            gameID: App.Game.gameID,
+            playerID: playerID,
+          });
+        }
+      });
+    },
+    disable: () => {
+      $(".score-card.confirming").off("click");
+    },
+  },
+
+  clueCompletedPress: {
+    enable: () => {
+      App.$doc.on("click keyup", (e) => {
+        // space...may change this later
+        if (e.keyCode === 32 || e.button === 0)
+          if (e.button === 0) {
+            if (App.mobile) {
+              if (!e.target.matches("#questionScreen, #questionScreen *"))
+                return;
+            } else {
+              // allow copying the text
+              if (!e.target.matches("#questionScreen")) return;
+            }
+          }
+        IO.socket.emit("clueCompleted", {
+          gameID: App.Game.gameID,
+          reset: true,
+        });
+        App.scoreQuestionClick.disable();
+        App.clueCompletedPress.disable();
+      });
+    },
+    disable: () => {
+      App.$doc.off("click keyup");
+    },
+  },
+
+  scoreQuestion: (players) => {
+    for (let playerID in players) {
+      App.updateScoreBoardConfirming(playerID, players[playerID]);
+    }
+    App.scoreQuestionClick.enable();
+    App.clueCompletedPress.enable();
   },
 
   Player: {
     // player that starts the game
-    // TODO: random player that is still in the game after previoujs owner leaves
+    id: null,
     isOwner: false,
     hasTurn: false,
     buzzedIn: false,
-    // socket.io socket object id. Unique for each player.
-    // Generated by the browser when the player initially connects to the server
-    sockID: "",
     // screen name of the player
     name: "",
 
