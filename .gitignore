@@ -1,5 +1,4 @@
 node_modules
-JEOPARDY_QUESTIONS.json
-processed_jeopardy_questions.json
 .pytest*
 j-quiz.pem
+connectVM.sh
