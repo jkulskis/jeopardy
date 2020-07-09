@@ -1,3 +1,54 @@
+
+const SpeechToText = {
+  result: null,
+  init: () => {
+    var SpeechRecognition = SpeechRecognition || webkitSpeechRecognition;
+    SpeechToText.listener = new SpeechRecognition();
+    SpeechToText.listener.onstart = SpeechToText.onstart;
+    SpeechToText.listener.onend = SpeechToText.onend;
+    SpeechToText.listener.onspeechend = SpeechToText.onspeechend;
+    SpeechToText.listener.onresult = SpeechToText.onresult;
+    SpeechToText.listener.onerror = SpeechToText.onerror;
+    SpeechToText.listener.continuous = false;
+    SpeechToText.listener.lang = "en-US";
+    SpeechToText.listener.interimResults = false;
+  },
+  onstart: () => {
+    SpeechToText.result = null;
+    console.log("Starting Speech Recognition");
+  },
+  onspeechend: () => {
+    console.log("Speech Ended");
+    SpeechToText.listener.stop();
+  },
+  onresult: (event) => {
+    let final_transcript = "";
+
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      final_transcript += event.results[i][0].transcript;
+    }
+    SpeechToText.result = final_transcript;
+    console.log(`Result: ${final_transcript}`);
+  },
+  onend: () => {
+    console.log("Ended Speech Recognition: Buzzing Out");
+    IO.socket.emit("buzzOut", {
+      gameID: App.Game.gameID,
+      answer: SpeechToText.result,
+    });
+  },
+  onerror: (event) => {
+    console.log("Error with speech Recognition:");
+    console.log(`${event.error}`);
+  },
+  start: () => {
+    SpeechToText.listener.start();
+  },
+  stop: () => {
+    SpeechToText.listener.stop();
+  },
+};
+
 const IO = {
   init: () => {
     IO.socket = io();
@@ -243,14 +294,18 @@ const App = {
     App.$doc.on("click", "#btnStartGame", App.onStartClick);
     App.$doc.on("change", "#playerName", App.Player.saveName);
     // gamePlay screen
-    App.clueClick.enable();
+    App.clueChoose.enable();
   },
 
-  clueClick: {
+  clueChoose: {
     enable: () => {
       App.$doc.on("click", ".cell.clue", function () {
         App.clueClick.onClueClick($(this).attr("id"));
       });
+      // if voice recognition is on
+      SpeechToText.onend = App.clueChoose.onClueSpoken;
+      SpeechToText.init();
+      SpeechToText.start();
     },
     disable: () => {
       App.$doc.off("click");
@@ -261,6 +316,20 @@ const App = {
           gameID: App.Game.gameID,
           clueID: clueID,
         });
+      }
+    },
+    onClueSpoken: () => {
+      console.log("On Clue Spoken triggered");
+      words = SpeechToText.result.toLowerCase().split(" ");
+      value = null;
+      for (var valueIndex = words.length - 2; valueIndex >= 0; --valueIndex)
+        if (words[valueIndex] === "for") value = parseInt(words[valueIndex + 1]);
+      if (value === null) {
+        console.log("Couldn't get the value, try again");
+        category = words.slice(0, valueIndex).join(" ");
+        similarCategory = stringSimilarity.findBestMatch(category, [...App.Game.clueMap.keys()]);
+        console.log(similarCategory);
+        console.log(value)
       }
     },
   },
@@ -298,7 +367,9 @@ const App = {
     multiplier = round === "round1" ? 1 : 2;
     let c = 0;
     $("#gameBoard").empty();
+    App.Game.clueMap = new Map();
     for (let category in board) {
+      App.Game.clueMap.set(category, {});
       $("#gameBoard").append(
         `<div id="c${c}" col="${c}" class="category"></div>`
       );
@@ -309,12 +380,11 @@ const App = {
       let r = 0;
       board[category].forEach((clue) => {
         $(`#c${c}`).append(
-          `<div id="${
-            clue["id"]
-          }" class="cell clue noselect" col="${c}" row="${r}">$${
+          `<div id="${clue["id"]}" class="cell clue noselect" value="${
             clue["value"] * multiplier
-          }</div>`
+          }" col="${c}" row="${r}">$${clue["value"] * multiplier}</div>`
         );
+        App.Game.clueMap.get(category)[clue["value"] * multiplier] = clue["id"];
         if (clue["answered"] === 1) {
           clueCell = $(`#${clue["id"]}`);
           clueCell.addClass("answered");
@@ -326,7 +396,7 @@ const App = {
     }
     $(".cell.header").fitText(0.8);
     $(".cell.clue").fitText(0.4);
-    App.clueClick.enable();
+    App.clueChoose.enable();
   },
 
   updateScoreBoard: (players, reset) => {
@@ -401,7 +471,10 @@ const App = {
       // if someone beat them to it
       App.Game.setScreen("playerBuzzedIn");
     } else if (App.Game.screen === "playerBuzzedIn" && App.Player.buzzedIn) {
-      IO.socket.emit("buzzOut", { gameID: App.Game.gameID });
+      IO.socket.emit("buzzOut", {
+        gameID: App.Game.gameID,
+        answer: SpeechToText.result,
+      });
     }
   },
 
@@ -410,6 +483,7 @@ const App = {
     App.Game.buzzedPlayerID = playerID;
     if (App.Player.id === playerID) {
       App.Player.buzzedIn = true;
+      SpeechToText.start();
     }
     playerTimer = $(`#timer-${playerID}`);
     playerTimer.attr("class", "playerTimer time-5000");
@@ -421,6 +495,9 @@ const App = {
   },
 
   playerTimerStopCountdown: (playerID) => {
+    if (App.Player.id === playerID) {
+      SpeechToText.stop();
+    }
     App.timer.clear();
     App.Game.buzzedPlayerID = null;
     // no one will be buzzed in if this is sent
@@ -446,7 +523,7 @@ const App = {
     $("#clueDivider").removeClass("hidden");
     $("#answerText").text(answer);
     // $("#answerText").fitText(1, { maxFontSize: "95px" });
-    App.clueClick.disable();
+    App.clueChoose.disable();
   },
 
   updateScoreBoardConfirming: (playerID, playerInfo) => {
@@ -534,6 +611,7 @@ const App = {
     gameID: null,
     screen: null,
     buzzedPlayerID: null,
+    clueMap: null,
 
     init: (gameID, isOwner) => {
       App.Game.gameID = gameID;
@@ -552,5 +630,6 @@ const App = {
   },
 };
 
+SpeechToText.init();
 IO.init();
 App.init();

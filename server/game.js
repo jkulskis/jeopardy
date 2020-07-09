@@ -409,6 +409,27 @@ function buzzIn(data) {
   );
 }
 
+function gradeAnswer(data) {
+  playerAnswer = data.answer
+    .replace(/what is\s/g, "")
+    .replace(/who is/g, "")
+    .replace(/the/g, "")
+    .replace(/ a /g, "")
+    .replace(/\s/g, "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  game = games[data.gameID];
+  correctAnswer = game.clueMap.get(game.currentClueID).answer.toLowerCase();
+  // planning on making this more robust + room for error
+  console.log(correctAnswer);
+  console.log(playerAnswer);
+  if (correctAnswer.includes(playerAnswer)) {
+    return true; // correct
+  }
+  return false; // incorrect
+}
+
 function buzzOut(data) {
   if (errorDataGamePlayer(data, this)) return 1;
   game = games[data.gameID];
@@ -419,6 +440,18 @@ function buzzOut(data) {
     playerID: game.buzzedPlayerID,
   });
   buzzedPlayerName = game.players[game.buzzedPlayerID].name;
+  while (hasKeys(data, "answer") && data.answer !== null) {
+    if (!gradeAnswer(data)) break;
+    io.to(data.gameID).emit("showStatus", {
+      message: `${buzzedPlayerName} Answered Correctly!`,
+    });
+    sendClueAnswer({ gameID: game.id });
+    game.buzzedPlayerIDs.set(game.buzzedPlayerID, {
+      name: buzzedPlayerName,
+      buzzStatus: "correct",
+    });
+    return emitScoreQuestion({ gameID: game.id });
+  }
   io.to(data.gameID).emit("showStatus", {
     message: `${buzzedPlayerName} Finished Answering!`,
   });
@@ -426,7 +459,7 @@ function buzzOut(data) {
   game.buzzedPlayerTimeoutHandler.clear();
   game.buzzedPlayerIDs.set(game.buzzedPlayerID, {
     name: buzzedPlayerName,
-    buzzStatus: "complete",
+    buzzStatus: "uncertain",
   });
   inquireOtherAnswers({ gameID: data.gameID });
 }
@@ -466,14 +499,15 @@ function sendClueAnswer(data) {
 function emitScoreQuestion(data) {
   game = games[data.gameID];
   for (let [playerID, playerInfo] of game.buzzedPlayerIDs.entries()) {
-    if (playerInfo.buzzStatus === "timeout") {
+    if (["timeout", "uncertain"].includes(playerInfo.buzzStatus)) {
       // early guess they lose points if timeout...having it red automatically
       // should also discourage players from not buzzing out, which should
       // ultimately make the games run faster
       game.players[playerID].score -= game.currentClueValue;
       game.buzzedPlayerIDs.get(playerID)["scoreState"] = "negative";
     } else {
-      game.buzzedPlayerIDs.get(playerID)["scoreState"] = "neutral";
+      game.players[playerID].score += game.currentClueValue;
+      game.buzzedPlayerIDs.get(playerID)["scoreState"] = "positive";
     }
     game.buzzedPlayerIDs.get(playerID)["score"] = game.players[playerID].score;
   }
@@ -504,18 +538,18 @@ function modifyPlayerScore(data) {
   playerScoreState = game.buzzedPlayerIDs.get(data.playerID)["scoreState"];
   newPlayerScoreState = null;
   if (playerScoreState === "negative") {
-    newPlayerScoreState = "neutral";
-    if (game.newTurnPlayerID === data.playerID) game.newTurnPlayerID = null;
-    game.players[data.playerID].score += game.currentClueValue;
-  } else if (playerScoreState === "neutral") {
     newPlayerScoreState = "positive";
+    if (game.newTurnPlayerID === data.playerID) game.newTurnPlayerID = null;
+    game.players[data.playerID].score += 2 * game.currentClueValue;
+  } else if (playerScoreState === "neutral") {
+    newPlayerScoreState = "negative";
     if (game.turnPlayerID !== data.playerID)
       game.newTurnPlayerID = data.playerID;
-    game.players[data.playerID].score += game.currentClueValue;
+    game.players[data.playerID].score -= game.currentClueValue;
   } else if (playerScoreState === "positive") {
     if (game.newTurnPlayerID === data.playerID) game.newTurnPlayerID = null;
-    newPlayerScoreState = "negative";
-    game.players[data.playerID].score -= 2 * game.currentClueValue;
+    newPlayerScoreState = "neutral";
+    game.players[data.playerID].score -= game.currentClueValue;
   }
   game.buzzedPlayerIDs.get(data.playerID)["scoreState"] = newPlayerScoreState;
   game.buzzedPlayerIDs.get(data.playerID)["score"] =
